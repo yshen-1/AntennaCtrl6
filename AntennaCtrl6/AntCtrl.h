@@ -25,7 +25,7 @@ uint16_t set_antenna(uint16_t epmNum);
 
 // Power control
 int pot_set (uint16_t val);
-
+uint16_t pot_value_calc(float voltage);
 // Debug
 void error(void);
 void Blink(void);

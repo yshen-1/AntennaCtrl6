@@ -54,11 +54,22 @@ int main(void)
 	//GlobalInterruptEnable();
 	
 	while(1){
-		//pot_set(0) sets voltage to 40 V.
-		//pot_set(128) sets voltage to 75 V.
-		//pot values are inverted b/c P0W and P0B are shorted.
-		pot_set(128);
-		_delay_ms(5);
+		//pot values are inverted b/c P0W and P0B are shorted
+		/*
+		*Sample code for setting pot voltage
+		*
+		*for (int i = 30; i < 85; i += 5) {
+		*	uint16_t pot_val = pot_value_calc((float)i);
+		*	pot_set(pot_val);
+		*	_delay_ms(5000);
+		*}
+		*/
+		pot_set(0);
+		/*
+		for (int i = 1; i < 71; i++) {
+			SendPulse(1, i);
+		}*/
+
 	}
 	return -1;
 }
@@ -71,7 +82,7 @@ uint8_t SendPulse(uint8_t polarity, uint16_t epmNum) {
 	PORTD &= set_antenna(epmNum);
 	_delay_us(50);
 	if (polarity) {
-		pot_set(80);
+		//pot_set(80);
 		PORTC &= 0b10010000; // turn on HC and LI
 		_delay_us(100);      // wait 100 us
 		PORTC &= 0b00000000; // turn off HC and LI
@@ -81,7 +92,7 @@ uint8_t SendPulse(uint8_t polarity, uint16_t epmNum) {
 		
 	}
 	else if (!polarity) {
-		pot_set(30);
+		//pot_set(30);
 		PORTC &= 0b01100000; // turn on LC and HI
 		_delay_us(100);      // Wait 100 us
 		PORTC &= 0b00000000; // turn off LC and HI
@@ -180,6 +191,18 @@ uint16_t set_antenna(uint16_t epmNum){
 	
 }
 
+uint16_t pot_value_calc(float voltage) {
+	float R2 = 67000.0;
+	float R1 = R2/(((voltage + 2.4)/1.5) - 1.0);
+	uint16_t dig_pot = (uint16_t)(255.0*R1/(5000.0));
+	if (dig_pot > 255) {
+		dig_pot = 255;
+	} else if (dig_pot < 0) {
+		dig_pot = 0;
+	}
+	return (255 - dig_pot);
+	
+}
 int pot_set (uint16_t val) {
 	//val is btwn 0 and 256
 	uint8_t cmd_error_mask = 0b00000010;
