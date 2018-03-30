@@ -20,11 +20,11 @@
 
 	/* Function Prototypes: */
 // Antenna control
-uint8_t SendPulse(uint8_t polarity, uint16_t epmNum);
-uint16_t set_antenna(uint16_t epmNum);
-
+int SendPulse(uint8_t polarity, int epmNum);
+void set_mux(int x, uint8_t HI, uint8_t LI);
+void set_COM(uint8_t HC, uint8_t LC);
 // Power control
-int pot_set (uint16_t val);
+int pot_set (float voltage);
 uint16_t pot_value_calc(float voltage);
 // Debug
 void error(void);
