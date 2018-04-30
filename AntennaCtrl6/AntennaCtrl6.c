@@ -7,6 +7,8 @@
 
 #include "AntCtrl.h"
 
+#define bit_set(p,m) ((p) |= (1 << m))
+#define bit_clear(p,m) ((p) &= ~(1 << m))
 
 /** Circular buffer to hold data from the host */
 //static RingBuffer_t FromHost_Buffer;
@@ -52,21 +54,30 @@ int main(void)
 	setupHardware();
 	//sei(); /*  Enable interrupts */
 	//GlobalInterruptEnable();
-	pot_set(25.0);
-	set_mux(52, 0, 0);
+	//set_mux(52, 0, 0);
 	while(1){
 		//pot values are inverted b/c P0W and P0B are shorted
-		/*
-		*Sample code for setting pot voltage
-		*
-		*for (int i = 30; i < 85; i += 5) {
-		*	pot_set((float)i);
-		*	_delay_ms(5000);
-		*}
+		/*set_mux(1, 0, 1);
+		_delay_ms(500);
+		set_mux(1, 1, 0);
+		_delay_ms(1);
+		set_mux(1, 0, 1);
+		_delay_ms(500);
 		*/
-		//pot_set(25.0);
-		SendPulse(0, 1);
-		_delay_ms(100);
+		
+		/*
+		set_COM(0, 1);
+		_delay_ms(500);
+		set_COM(1, 0);
+		_delay_us(100);
+		set_COM(0, 1);
+		_delay_ms(500);
+		*/
+		
+		SendPulse(1, 0);
+		_delay_ms(500);
+		SendPulse(0, 0);
+		_delay_ms(500);
 	}
 	
 	return -1;
@@ -88,23 +99,17 @@ int SendPulse(uint8_t polarity, int epmNum)
 		*/
 		set_mux(epmNum, 0, 1);
 		set_COM(0, 1);
-		_delay_ms(1);
+		_delay_ms(1); // Zero out the FETs
 		//Send actual pulse
-		set_COM(1,0);
-		_delay_us(100);
-		set_mux(epmNum, 0, 1);
+		set_COM(1, 0);
+		_delay_us(100); // Pulse duration
 		set_COM(0, 1);
 		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
+		_delay_ms(100); // Wait for ringing to calm down
 		//Clean up
 		set_mux(epmNum, 0, 0);
 		set_COM(0, 0);
-		_delay_ms(1);
-		error();
+		return 1;
 	} else {
 		/*
 		Send a negative pulse to EPMx:
@@ -122,16 +127,13 @@ int SendPulse(uint8_t polarity, int epmNum)
 		//Turn off
 		set_mux(epmNum, 0, 1);
 		set_COM(0, 1);
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
+		_delay_ms(100);
 		//Clean up
 		set_mux(epmNum, 0, 0);
 		set_COM(0, 0);
-		_delay_ms(1);
+		return 1;
 	}
-	return 1;
+
 
 }
 
@@ -148,7 +150,8 @@ void set_mux(int x, uint8_t HI, uint8_t LI)
 	uint8_t CD_mux_num = (uint8_t)(x/16);
 	//0 <= mux_io_num <= 15	
 	uint8_t mux_io_num = (uint8_t)(x%16);
-	//Set ISL COM on L and H to 0 initially.
+	//Set ISL COM on L and H to 0 initially, but after writing the address
+	// to PORTD.
 	PORTC &= 0b00111111;
 	//Write to PORTD and connect LIx and HIx to
 	//ISL_COM_L and ISL_COM_H
@@ -156,20 +159,39 @@ void set_mux(int x, uint8_t HI, uint8_t LI)
 	uint8_t CD_addr_mask = 0b00001111;
 	uint8_t portd_val = (mux_io_num & CD_addr_mask) | ((CD_mux_num & ISL_addr_mask) << 4);
 	PORTD = (PORTD & 0b10000000) | (portd_val & 0b01111111);
-	if (LI){
-		LI = 0b00000001;
-	} else {
-		LI = 0;
-	}
-	if (HI) {
-		HI = 0b00000001;
-	} else {
-		HI = 0;
-	}
+
 	//Write LI and HI to PORTC to set LIx and HIx
-	uint8_t HILI = (LI << 1) | HI;
-	HILI = (HILI << 6) & 0b11000000;
-	PORTC = PORTC | HILI; 
+	/*
+	The Hi side MOSFET is controlled by PORTC6
+	and the Lo side is controlled by PORTC7.
+	*/
+	if (HI && LI) {
+		return; //BAD!!!
+	} else if ((!HI) && LI) {
+		// HI is 0 and LI is 1.
+		// Turn off the upper MOSFET
+		// and turn on the lower MOSFET.
+		// Use twice as much dead time
+		// b/c the gate voltage of the HI
+		// MOSFET is greater.
+		bit_clear(PORTC, PORTC6);
+		_delay_us(10);
+		bit_set(PORTC, PORTC7);
+	} else if (HI && (!LI)) {
+		// HI is 1 and LI is 0
+		/*
+		Turn off the lower MOSFET
+		while turning on the higher MOSFET
+		*/
+		bit_clear(PORTC, PORTC7);
+		_delay_us(5);
+		bit_set(PORTC, PORTC6);
+	} else {
+		// HI and LI are both 0
+		bit_clear(PORTC, PORTC7);
+		_delay_us(5);
+		bit_clear(PORTC, PORTC6);
+	}
 	return;	
 }
 
@@ -177,22 +199,32 @@ void set_mux(int x, uint8_t HI, uint8_t LI)
 //on the values of the arguments
 void set_COM(uint8_t HC, uint8_t LC) 
 {
-	if (HC) {
-		HC = 0b00000001;
+	if (HC && LC) {
+		// HC and LC are both 1
+		return; //This is bad!
+	} else if ((!HC) && LC) {
+		// LC is 1, HC is 0
+		//First turn off HC.
+		bit_clear(PORTC, PORTC4);
+		//Wait 3 usec.
+		_delay_us(10);
+		bit_set(PORTC, PORTC5);
+		return;
+	} else if ((!LC) && HC) {
+		// LC is 0, HC is 1
+		//First turn off LC.
+		bit_clear(PORTC, PORTC5);
+		_delay_us(4);
+		bit_set(PORTC, PORTC4);
+		return;
 	} else {
-		HC = 0;
+		// LC and HC are both 0
+		//First turn off LC.
+		bit_clear(PORTC, PORTC5);
+		_delay_us(5);
+		bit_clear(PORTC, PORTC4);
+		return;
 	}
-	if (LC) {
-		LC = 0b00000001;
-	} else {
-		LC = 0;
-	}
-	//Initially set HC and LC to 0
-	PORTC &= 0b11001111;
-	uint8_t HCLC = (LC << 1) | HC;
-	HCLC &= 0b00000011;
-	//Write the HC and LC values to PORTC
-	PORTC |= (HCLC << 4);
 	return;
 }
 
