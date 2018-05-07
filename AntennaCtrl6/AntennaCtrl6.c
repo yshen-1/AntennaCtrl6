@@ -54,30 +54,13 @@ int main(void)
 	setupHardware();
 	//sei(); /*  Enable interrupts */
 	//GlobalInterruptEnable();
-	//set_mux(52, 0, 0);
 	while(1){
 		//pot values are inverted b/c P0W and P0B are shorted
-		/*set_mux(1, 0, 1);
-		_delay_ms(500);
-		set_mux(1, 1, 0);
-		_delay_ms(1);
-		set_mux(1, 0, 1);
-		_delay_ms(500);
-		*/
-		
-		/*
-		set_COM(0, 1);
-		_delay_ms(500);
-		set_COM(1, 0);
-		_delay_us(100);
-		set_COM(0, 1);
-		_delay_ms(500);
-		*/
-		
-		SendPulse(1, 0);
-		_delay_ms(500);
 		SendPulse(0, 0);
 		_delay_ms(500);
+		SendPulse(1, 0);
+		_delay_ms(500);
+		
 	}
 	
 	return -1;
@@ -97,18 +80,15 @@ int SendPulse(uint8_t polarity, int epmNum)
 		3. Wait t usecs.
 		4. Set LIx to 0 and HC to 0.
 		*/
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
-		_delay_ms(1); // Zero out the FETs
-		//Send actual pulse
-		set_COM(1, 0);
-		_delay_us(100); // Pulse duration
-		set_COM(0, 1);
-		set_mux(epmNum, 0, 1);
-		_delay_ms(100); // Wait for ringing to calm down
-		//Clean up
 		set_mux(epmNum, 0, 0);
 		set_COM(0, 0);
+		_delay_ms(1); // Zero out the FETs
+		set_COM(1, 0);
+		set_mux(0, 0, 1);
+		_delay_us(100);
+		set_mux(epmNum, 0, 0);
+		set_COM(0, 0); // Cut off pulse
+		_delay_ms(1);
 		return 1;
 	} else {
 		/*
@@ -118,19 +98,16 @@ int SendPulse(uint8_t polarity, int epmNum)
 		3. Wait t usecs.
 		4. Set LC to 0 and HIx to 0.
 		*/
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
+		set_mux(epmNum, 0, 0);
+		set_COM(0, 0); //Zero out FETs
 		_delay_ms(1);
-		//Send actual pulse
 		set_mux(epmNum, 1, 0);
+		set_COM(0, 1);
 		_delay_us(100);
 		//Turn off
-		set_mux(epmNum, 0, 1);
-		set_COM(0, 1);
-		_delay_ms(100);
-		//Clean up
-		set_mux(epmNum, 0, 0);
 		set_COM(0, 0);
+		set_mux(epmNum, 0, 0);
+		_delay_ms(1);
 		return 1;
 	}
 
@@ -175,7 +152,7 @@ void set_mux(int x, uint8_t HI, uint8_t LI)
 		// b/c the gate voltage of the HI
 		// MOSFET is greater.
 		bit_clear(PORTC, PORTC6);
-		_delay_us(10);
+		_delay_us(2);
 		bit_set(PORTC, PORTC7);
 	} else if (HI && (!LI)) {
 		// HI is 1 and LI is 0
@@ -184,12 +161,11 @@ void set_mux(int x, uint8_t HI, uint8_t LI)
 		while turning on the higher MOSFET
 		*/
 		bit_clear(PORTC, PORTC7);
-		_delay_us(5);
+		_delay_us(2);
 		bit_set(PORTC, PORTC6);
 	} else {
 		// HI and LI are both 0
 		bit_clear(PORTC, PORTC7);
-		_delay_us(5);
 		bit_clear(PORTC, PORTC6);
 	}
 	return;	
@@ -206,22 +182,20 @@ void set_COM(uint8_t HC, uint8_t LC)
 		// LC is 1, HC is 0
 		//First turn off HC.
 		bit_clear(PORTC, PORTC4);
-		//Wait 3 usec.
-		_delay_us(10);
+		_delay_us(2);
 		bit_set(PORTC, PORTC5);
 		return;
 	} else if ((!LC) && HC) {
 		// LC is 0, HC is 1
 		//First turn off LC.
 		bit_clear(PORTC, PORTC5);
-		_delay_us(4);
+		_delay_us(2);
 		bit_set(PORTC, PORTC4);
 		return;
 	} else {
 		// LC and HC are both 0
 		//First turn off LC.
 		bit_clear(PORTC, PORTC5);
-		_delay_us(5);
 		bit_clear(PORTC, PORTC4);
 		return;
 	}
