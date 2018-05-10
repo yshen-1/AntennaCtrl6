@@ -83,14 +83,13 @@ AntennaCtrl6.o: AntennaCtrl6.c AntCtrl.h Descriptors.h \
  LUFA/Drivers/USB/Class/Device/RNDISClassDevice.h \
  LUFA/Drivers/USB/Class/Device/../Common/RNDISClassCommon.h \
  LUFA/Drivers/USB/Class/Device/../Common/CDCClassCommon.h \
- LUFA/Drivers/USB/Class/StillImageClass.h LUFA/Version.h \
+ LUFA/Drivers/USB/Class/StillImageClass.h \
  LUFA/Drivers/Peripheral/Serial.h \
  LUFA/Drivers/Peripheral/../../Common/Common.h \
  LUFA/Drivers/Peripheral/AVR8/Serial_AVR8.h \
  LUFA/Drivers/Peripheral/AVR8/../../../Common/Common.h \
  LUFA/Drivers/Peripheral/AVR8/../../Misc/TerminalCodes.h \
- LUFA/Drivers/Misc/RingBuffer.h LUFA/Drivers/Misc/../../Common/Common.h \
- LUFA/Platform/Platform.h LUFA/Platform/../Common/Common.h
+ LUFA/Drivers/Board/LEDs.h LUFA/Drivers/Board/../../Common/Common.h
 
 AntCtrl.h:
 
@@ -278,8 +277,6 @@ LUFA/Drivers/USB/Class/Device/../Common/CDCClassCommon.h:
 
 LUFA/Drivers/USB/Class/StillImageClass.h:
 
-LUFA/Version.h:
-
 LUFA/Drivers/Peripheral/Serial.h:
 
 LUFA/Drivers/Peripheral/../../Common/Common.h:
@@ -290,10 +287,6 @@ LUFA/Drivers/Peripheral/AVR8/../../../Common/Common.h:
 
 LUFA/Drivers/Peripheral/AVR8/../../Misc/TerminalCodes.h:
 
-LUFA/Drivers/Misc/RingBuffer.h:
+LUFA/Drivers/Board/LEDs.h:
 
-LUFA/Drivers/Misc/../../Common/Common.h:
-
-LUFA/Platform/Platform.h:
-
-LUFA/Platform/../Common/Common.h:
+LUFA/Drivers/Board/../../Common/Common.h:

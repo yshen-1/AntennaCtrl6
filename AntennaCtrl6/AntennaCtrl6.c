@@ -2,7 +2,7 @@
  * main.c
  *
  * Created: 3/23/2017 12:32:50 PM
- * Author : Lou
+ * Author : Lou, Yuyi Shen, Bonny Chen
  */ 
 
 #include "AntCtrl.h"
@@ -10,12 +10,8 @@
 #define bit_set(p,m) ((p) |= (1 << m))
 #define bit_clear(p,m) ((p) &= ~(1 << m))
 
-/** Circular buffer to hold data from the host */
-//static RingBuffer_t FromHost_Buffer;
-
-/** Underlying data buffer for \ref FromHost_Buffer, where the stored bytes are located. */
-//static uint8_t      FromHost_Buffer_Data[128];
-
+volatile int usb_connected = 0;
+static FILE USBSerialStream;
 /** LUFA CDC Class driver interface configuration and state information. This structure is
  *  passed to all CDC Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -46,21 +42,83 @@ USB_ClassInfo_CDC_Device_t VirtualSerial_CDC_Interface =
 	},
 };
 
-
+void usb_rx(void)
+{
+	char buf[10];
+	char numbuf[10];
+	char returnbuf[10];
+	int i, flag;
+	char *errvar;
+	char *testparse;
+	long epmNumber;
+	int pulseerror = 0;
+	errvar = fgets(buf, 10, &USBSerialStream);
+	if (errvar != NULL) {
+		if ((buf[0] != '+') && (buf[0] != '-')) {
+			fputs("Commands must start with + or -.", &USBSerialStream);
+			return;
+		}
+		i = 1;
+		flag = 0;
+		while (i < 10) {
+			if (buf[i] == '\\') {
+				flag = 1;
+			}
+			if (!flag) {
+				numbuf[i-1] = buf[i];
+			}
+			i++;
+		}
+		errno = 0;
+		long epmNumber = strtol(numbuf, NULL, 10);
+		if ((errno != 0) || epmNumber == 0) {
+			fputs("Bad command", &USBSerialStream);
+			return;
+		}
+		if (buf[0] == '+') {
+			pulseerror = SendPulse(1, (int)(epmNumber-1));
+			if (pulseerror < 0) {
+				fputs("Pulse failed", &USBSerialStream);
+			} else {
+				sprintf(returnbuf, "%d", (int)epmNumber);
+				fputs("Positive Pulse sent to ", &USBSerialStream);
+				fputs(returnbuf, &USBSerialStream);
+			}
+		} else if (buf[0] == '-') {
+			pulseerror = SendPulse(0, (int)(epmNumber-1));
+			if (pulseerror < 0) {
+				fputs("Pulse failed", &USBSerialStream);
+			} else {
+				sprintf(returnbuf, "%d", (int)epmNumber);
+				fputs("Negative Pulse sent to ", &USBSerialStream);
+				fputs(returnbuf, &USBSerialStream);
+			}
+		}
+		
+	}
+}
 
 int main(void)
 {
 
 	setupHardware();
-	//sei(); /*  Enable interrupts */
-	//GlobalInterruptEnable();
+	CDC_Device_CreateStream(&VirtualSerial_CDC_Interface, &USBSerialStream);
+	sei(); /*  Enable interrupts */
+	GlobalInterruptEnable();
 	while(1){
 		//pot values are inverted b/c P0W and P0B are shorted
+		if (usb_connected) {
+			// Do stuff
+			usb_rx();
+			CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
+			USB_USBTask();
+		}
+		/*
 		SendPulse(0, 0);
 		_delay_ms(500);
 		SendPulse(1, 0);
 		_delay_ms(500);
-		
+		*/
 	}
 	
 	return -1;
@@ -80,14 +138,15 @@ int SendPulse(uint8_t polarity, int epmNum)
 		3. Wait t usecs.
 		4. Set LIx to 0 and HC to 0.
 		*/
+		Blink();
 		set_mux(epmNum, 0, 0);
 		set_COM(0, 0);
 		_delay_ms(1); // Zero out the FETs
 		set_COM(1, 0);
 		set_mux(0, 0, 1);
 		_delay_us(100);
-		set_mux(epmNum, 0, 0);
 		set_COM(0, 0); // Cut off pulse
+		set_mux(epmNum, 0, 0);
 		_delay_ms(1);
 		return 1;
 	} else {
@@ -105,8 +164,8 @@ int SendPulse(uint8_t polarity, int epmNum)
 		set_COM(0, 1);
 		_delay_us(100);
 		//Turn off
-		set_COM(0, 0);
 		set_mux(epmNum, 0, 0);
+		set_COM(0, 0);
 		_delay_ms(1);
 		return 1;
 	}
@@ -246,19 +305,15 @@ void Blink(void)
 {
 	// Blinks blue LED with specified period
 	PORTB |= 0b01000000;
-	_delay_ms(1000);
+	_delay_ms(300);
 	PORTB &= (~0b01000000);
 	return;
 	//CDC_Device_SendString(&VirtualSerial_CDC_Interface, "Blink");
 	
 }
 
-
 void setupHardware(void) 
 {
-
-	//CDC_Device_SendString(&VirtualSerial_CDC_Interface, "Setting up hardware");
-
 	/* Disable watchdog */
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
@@ -266,12 +321,7 @@ void setupHardware(void)
 	clock_prescale_set(clock_div_1);
 	
 	/* Hardware Initialization */
-	USB_Init();
-	
-	/* Start the flush timer so that overflows occur rapidly to push received bytes to the USB interface */
-	//TCCR0B = (1 << CS02);
-	
-	
+	USB_Init();	
 	DDRD = 0b01111111;
 	DDRC = 0b11110000;
 	SPI_MasterInit();
@@ -292,5 +342,26 @@ void SPI_MasterTransmit(char cData)
 	;
 }
 
+/** Event handler for the library USB Connection event. */
+void EVENT_USB_Device_Connect(void)
+{
+    usb_connected = 1;
+}
 
+/** Event handler for the library USB Disconnection event. */
+void EVENT_USB_Device_Disconnect(void)
+{
+    usb_connected = 0;
+}
 
+/** Event handler for the library USB Configuration Changed event. */
+void EVENT_USB_Device_ConfigurationChanged(void)
+{
+	CDC_Device_ConfigureEndpoints(&VirtualSerial_CDC_Interface);
+}
+
+/** Event handler for the library USB Control Request reception event. */
+void EVENT_USB_Device_ControlRequest(void)
+{
+	CDC_Device_ProcessControlRequest(&VirtualSerial_CDC_Interface);
+}
